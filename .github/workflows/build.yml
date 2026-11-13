@@ -1,0 +1,74 @@
+name: Build IrkZakup APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Загрузка кода
+        uses: actions/checkout@v4
+
+      - name: 2. Установка Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 3. Установка Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: 4. Постоянный ключ подписи Android
+        run: |
+          if [ ! -f debug.keystore ]; then
+            keytool -genkey -v -keystore debug.keystore \
+              -storepass android -alias androiddebugkey -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git pull --rebase
+            git add debug.keystore
+            git commit -m "chore: save signing key"
+            git push
+          fi
+          mkdir -p ~/.android
+          cp debug.keystore ~/.android/debug.keystore
+
+      - name: 5. Сборка Android-проекта (Capacitor)
+        run: |
+          mkdir -p www
+          cp index.html www/index.html
+          npm init -y
+          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+          npx cap init "IrkZakup" "com.irkzakup.app" --web-dir www
+          npx cap add android
+          sed -i 's/>IrkZakup</>ИркЗакуп</g' android/app/src/main/res/values/strings.xml
+
+      - name: 6. Обновление номера версии
+        run: |
+          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/g" android/app/build.gradle
+          sed -i "s/versionName \"1.0\"/versionName \"1.0.${{ github.run_number }}\"/g" android/app/build.gradle
+
+      - name: 7. Компиляция APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk ../IrkZakup-v1.0.${{ github.run_number }}.apk
+
+      - name: 8. Выгрузка готового APK в Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: "ИркЗакуп v1.0.${{ github.run_number }}"
+          files: IrkZakup-v1.0.${{ github.run_number }}.apk
