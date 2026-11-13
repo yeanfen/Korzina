@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ИркЗакуп — Умная корзина</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { -webkit-tap-highlight-color: transparent; font-family: system-ui, -apple-system, sans-serif; }
+    .tab-active { background-color: #059669; color: white; font-weight: 600; }
+    .chip-fav { background-color: #d1fae5; color: #065f46; border: 1px solid #34d399; }
+    .chip-ban { background-color: #fee2e2; color: #991b1b; border: 1px solid #f87171; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-24">
+
+  <!-- Шапка -->
+  <header class="bg-slate-800 border-b border-slate-700 sticky top-0 z-30 px-4 py-3 flex items-center justify-between shadow-md">
+    <div>
+      <div class="flex items-center gap-2">
+        <span class="text-xl">🌲</span>
+        <h1 class="text-lg font-bold tracking-tight text-emerald-400">ИркЗакуп</h1>
+        <span id="headerCityBadge" class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">Тайшет</span>
+      </div>
+      <p class="text-xs text-slate-400">Автосборка корзины по скидкам</p>
+    </div>
+    <button onclick="generatePlan()" class="bg-emerald-600 active:bg-emerald-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow">
+      ⚡ Пересчитать
+    </button>
+  </header>
+
+  <!-- Контейнер вкладок -->
+  <main class="max-w-lg mx-auto p-4">
+
+    <!-- ВКЛАДКА 1: ПАРАМЕТРЫ -->
+    <section id="tab-params" class="space-y-4">
+      <div class="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-4">
+        <div>
+          <label class="text-xs text-slate-400 uppercase font-bold">Город Иркутской области</label>
+          <select id="citySelect" onchange="saveAndRecalc()" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white">
+            <option value="Тайшет">Тайшет (Слата, ХлебСоль, Пятёрочка)</option>
+            <option value="Иркутск">Иркутск (Слата, Лента, ХлебСоль, Пятёрочка)</option>
+            <option value="Ангарск">Ангарск (Слата, Лента, ХлебСоль, Пятёрочка)</option>
+            <option value="Братск">Братск (Слата, ХлебСоль, Пятёрочка)</option>
+            <option value="Шелехов">Шелехов (Слата, ХлебСоль, Пятёрочка)</option>
+          </select>
+        </div>
+
+        <div>
+          <div class="flex justify-between text-sm mb-1">
+            <span class="text-slate-300">Бюджет на закупку:</span>
+            <span id="budgetLabel" class="font-bold text-emerald-400">4 500 ₽</span>
+          </div>
+          <input id="budgetInput" type="range" min="1000" max="20000" step="250" value="4500" oninput="updateSliders()" onchange="saveAndRecalc()" class="w-full accent-emerald-500">
+        </div>
+
+        <div>
+          <div class="flex justify-between text-sm mb-1">
+            <span class="text-slate-300">На сколько дней:</span>
+            <span id="daysLabel" class="font-bold text-emerald-400">5 дней</span>
+          </div>
+          <input id="daysInput" type="range" min="2" max="14" step="1" value="5" oninput="updateSliders()" onchange="saveAndRecalc()" class="w-full accent-emerald-500">
+        </div>
+
+        <div>
+          <label class="text-xs text-slate-400 uppercase font-bold">График питания</label>
+          <div class="grid grid-cols-3 gap-2 mt-1.5">
+            <button onclick="setMeals(2)" id="mealBtn2" class="meal-btn py-2 rounded-xl text-xs font-semibold border border-slate-700 bg-slate-900">2 раза/день</button>
+            <button onclick="setMeals(3)" id="mealBtn3" class="meal-btn py-2 rounded-xl text-xs font-semibold border border-emerald-500 bg-emerald-950 text-emerald-300">3 раза/день</button>
+            <button onclick="setMeals(4)" id="mealBtn4" class="meal-btn py-2 rounded-xl text-xs font-semibold border border-slate-700 bg-slate-900">3 + перекус</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Любимые продукты -->
+      <div class="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
+        <div class="flex justify-between items-center">
+          <h2 class="text-sm font-bold text-emerald-400">💚 Любимые продукты (приоритет)</h2>
+        </div>
+        <div id="favContainer" class="flex flex-wrap gap-1.5"></div>
+        <div class="flex gap-2 pt-1">
+          <input id="newFavInput" type="text" placeholder="Добавить (напр. эноки, карбонад)..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs">
+          <button onclick="addCustomTag('fav')" class="bg-emerald-600 px-3 py-1.5 rounded-xl text-xs font-bold">+</button>
+        </div>
+      </div>
+
+      <!-- Нелюбимые продукты -->
+      <div class="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
+        <h2 class="text-sm font-bold text-rose-400">🚫 Черный список (исключить)</h2>
+        <div id="banContainer" class="flex flex-wrap gap-1.5"></div>
+        <div class="flex gap-2 pt-1">
+          <input id="newBanInput" type="text" placeholder="Исключить (напр. печень, перловка)..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs">
+          <button onclick="addCustomTag('ban')" class="bg-rose-600 px-3 py-1.5 rounded-xl text-xs font-bold">+</button>
+        </div>
+      </div>
+
+      <button onclick="generatePlan(); switchTab('cart');" class="w-full bg-emerald-500 active:bg-emerald-600 text-slate-950 font-bold py-3.5 rounded-2xl shadow-lg text-sm">
+        🛒 Собрать оптимальную корзину
+      </button>
+    </section>
+
+    <!-- ВКЛАДКА 2: КОРЗИНА -->
+    <section id="tab-cart" class="space-y-4 hidden">
+      <!-- Сводка по бюджету и магазинам -->
+      <div id="cartSummary" class="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-2"></div>
+
+      <!-- Список товаров по магазинам -->
+      <div id="cartStoresList" class="space-y-4"></div>
+
+      <button onclick="copyCartToClipboard()" class="w-full bg-slate-700 active:bg-slate-600 text-white font-semibold py-3 rounded-xl text-xs">
+        📋 Скопировать список для Telegram / Заметок
+      </button>
+    </section>
+
+    <!-- ВКЛАДКА 3: МЕНЮ -->
+    <section id="tab-menu" class="space-y-3 hidden">
+      <div id="menuDaysList" class="space-y-3"></div>
+    </section>
+
+    <!-- ВКЛАДКА 4: КЛАДОВКА ОСТАТКОВ -->
+    <section id="tab-pantry" class="space-y-3 hidden">
+      <div class="bg-slate-800 rounded-2xl p-4 border border-slate-700">
+        <h2 class="text-sm font-bold text-amber-400 mb-1">📦 Виртуальная кладовка</h2>
+        <p class="text-xs text-slate-400 mb-3">Продукты покупаются целыми пачками. То, что не ушло в готовку, остается у тебя дома в запасе:</p>
+        <div id="pantryList" class="space-y-2"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Нижняя панель навигации -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-slate-800 border-t border-slate-700 px-2 py-2 flex justify-around z-30 max-w-lg mx-auto">
+    <button onclick="switchTab('params')" id="nav-params" class="tab-active flex-1 py-2 rounded-xl text-xs flex flex-col items-center gap-0.5">
+      <span>⚙️</span><span>Параметры</span>
+    </button>
+    <button onclick="switchTab('cart')" id="nav-cart" class="flex-1 py-2 rounded-xl text-xs text-slate-400 flex flex-col items-center gap-0.5">
+      <span>🛒</span><span>Корзина</span>
+    </button>
+    <button onclick="switchTab('menu')" id="nav-menu" class="flex-1 py-2 rounded-xl text-xs text-slate-400 flex flex-col items-center gap-0.5">
+      <span>🍲</span><span>Рацион</span>
+    </button>
+    <button onclick="switchTab('pantry')" id="nav-pantry" class="flex-1 py-2 rounded-xl text-xs text-slate-400 flex flex-col items-center gap-0.5">
+      <span>📦</span><span>Остатки</span>
+    </button>
+  </nav>
+
+  <script>
+    // Каталог товаров с ценами сетей Иркутской области (вес в граммах/мл)
+    const CATALOG = [
+      { id: 'pork_steak', name: 'Свиной карбонад / стейк охлажденный', packGrams: 500, tags: ['свинина', 'карбонад', 'мясо'], prices: { 'Слата': { price: 249, old: 299, promo: true }, 'ХлебСоль': { price: 259, old: 259, promo: false }, 'Лента': { price: 239, old: 289, promo: true }, 'Пятёрочка': { price: 265, old: 265, promo: false } } },
+      { id: 'chicken_thigh', name: 'Бедро цыпленка-бройлера (Саянский бройлер)', packGrams: 800, tags: ['курица', 'птица', 'мясо'], prices: { 'Слата': { price: 269, old: 295, promo: true }, 'ХлебСоль': { price: 245, old: 279, promo: true }, 'Лента': { price: 255, old: 255, promo: false }, 'Пятёрочка': { price: 259, old: 289, promo: true } } },
+      { id: 'rice', name: 'Рис круглозерный / жасмин в пачке', packGrams: 800, tags: ['рис', 'крупа', 'гарнир'], prices: { 'Слата': { price: 119, old: 149, promo: true }, 'ХлебСоль': { price: 99, old: 125, promo: true }, 'Лента': { price: 109, old: 139, promo: true }, 'Пятёрочка': { price: 115, old: 115, promo: false } } },
+      { id: 'green_beans', name: 'Фасоль стручковая резаная с/м', packGrams: 400, tags: ['стручковая фасоль', 'фасоль', 'овощи'], prices: { 'Слата': { price: 115, old: 145, promo: true }, 'ХлебСоль': { price: 109, old: 109, promo: false }, 'Лента': { price: 99, old: 129, promo: true }, 'Пятёрочка': { price: 119, old: 139, promo: true } } },
+      { id: 'enoki_mushrooms', name: 'Грибы Эноки / Шампиньоны свежие', packGrams: 300, tags: ['эноки', 'грибы', 'шампиньоны'], prices: { 'Слата': { price: 129, old: 169, promo: true }, 'ХлебСоль': { price: 139, old: 139, promo: false }, 'Лента': { price: 119, old: 159, promo: true }, 'Пятёрочка': { price: 135, old: 155, promo: true } } },
+      { id: 'eggs', name: 'Яйцо куриное С1 (Белореченское 10 шт)', packGrams: 550, tags: ['яйца', 'завтрак'], prices: { 'Слата': { price: 119, old: 135, promo: true }, 'ХлебСоль': { price: 108, old: 125, promo: true }, 'Лента': { price: 112, old: 129, promo: true }, 'Пятёрочка': { price: 114, old: 114, promo: false } } },
+      { id: 'pasta', name: 'Макароны из твердых сортов пшеницы', packGrams: 450, tags: ['макароны', 'паста', 'гарнир'], prices: { 'Слата': { price: 79, old: 99, promo: true }, 'ХлебСоль': { price: 65, old: 79, promo: true }, 'Лента': { price: 69, old: 89, promo: true }, 'Пятёрочка': { price: 72, old: 72, promo: false } } },
+      { id: 'cheese', name: 'Сыр полутвердый Российский / Гауда', packGrams: 200, tags: ['сыр', 'молочка', 'завтрак'], prices: { 'Слата': { price: 169, old: 210, promo: true }, 'ХлебСоль': { price: 159, old: 189, promo: true }, 'Лента': { price: 155, old: 199, promo: true }, 'Пятёрочка': { price: 164, old: 189, promo: true } } },
+      { id: 'buuzy', name: 'Буузы по-бурятски ручной лепки с/м', packGrams: 800, tags: ['буузы', 'пельмени', 'мясо'], prices: { 'Слата': { price: 349, old: 429, promo: true }, 'ХлебСоль': { price: 319, old: 379, promo: true }, 'Лента': { price: 339, old: 399, promo: true }, 'Пятёрочка': { price: 359, old: 359, promo: false } } },
+      { id: 'oats', name: 'Хлопья овсяные Геркулес', packGrams: 500, tags: ['овсянка', 'каша', 'завтрак'], prices: { 'Слата': { price: 65, old: 65, promo: false }, 'ХлебСоль': { price: 49, old: 62, promo: true }, 'Лента': { price: 55, old: 55, promo: false }, 'Пятёрочка': { price: 54, old: 69, promo: true } } },
+      { id: 'milk', name: 'Молоко Янта / Млада 2.5% (1 л)', packGrams: 1000, tags: ['молоко', 'молочка', 'завтрак'], prices: { 'Слата': { price: 89, old: 105, promo: true }, 'ХлебСоль': { price: 82, old: 95, promo: true }, 'Лента': { price: 85, old: 99, promo: true }, 'Пятёрочка': { price: 86, old: 86, promo: false } } },
+      { id: 'potato', name: 'Картофель мытый / домашний (сетка)', packGrams: 1500, tags: ['картофель', 'овощи', 'гарнир'], prices: { 'Слата': { price: 89, old: 109, promo: true }, 'ХлебСоль': { price: 75, old: 90, promo: true }, 'Лента': { price: 79, old: 79, promo: false }, 'Пятёрочка': { price: 84, old: 99, promo: true } } },
+      { id: 'curd', name: 'Творог 5% рассыпчатый (Белореченский)', packGrams: 350, tags: ['творог', 'перекус', 'завтрак'], prices: { 'Слата': { price: 139, old: 165, promo: true }, 'ХлебСоль': { price: 129, old: 149, promo: true }, 'Лента': { price: 135, old: 155, promo: true }, 'Пятёрочка': { price: 132, old: 132, promo: false } } },
+      { id: 'liver', name: 'Печень говяжья / куриная охлажденная', packGrams: 500, tags: ['печень', 'субпродукты'], prices: { 'Слата': { price: 169, old: 199, promo: true }, 'ХлебСоль': { price: 149, old: 179, promo: true }, 'Лента': { price: 159, old: 159, promo: false }, 'Пятёрочка': { price: 165, old: 185, promo: true } } },
+      { id: 'barley', name: 'Крупа перловая отборная', packGrams: 800, tags: ['перловка', 'крупа'], prices: { 'Слата': { price: 49, old: 49, promo: false }, 'ХлебСоль': { price: 39, old: 45, promo: true }, 'Лента': { price: 42, old: 42, promo: false }, 'Пятёрочка': { price: 44, old: 44, promo: false } } }
+    ];
+
+    const RECIPES = [
+      { id: 'r1', type: 'main', title: 'Свиной стейк с рисом и грибами эноки', items: [{ id: 'pork_steak', g: 200 }, { id: 'rice', g: 100 }, { id: 'enoki_mushrooms', g: 80 }] },
+      { id: 'r2', type: 'main', title: 'Запеченное куриное бедро со стручковой фасолью', items: [{ id: 'chicken_thigh', g: 220 }, { id: 'green_beans', g: 150 }] },
+      { id: 'r3', type: 'main', title: 'Паста с курицей, грибами и сырной корочкой', items: [{ id: 'pasta', g: 110 }, { id: 'chicken_thigh', g: 150 }, { id: 'enoki_mushrooms', g: 60 }, { id: 'cheese', g: 35 }] },
+      { id: 'r4', type: 'main', title: 'Сочные бурятские буузы', items: [{ id: 'buuzy', g: 260 }] },
+      { id: 'r5', type: 'main', title: 'Жаркое из свинины с молодым картофелем', items: [{ id: 'pork_steak', g: 180 }, { id: 'potato', g: 250 }] },
+      { id: 'r6', type: 'main', title: 'Тушеная печень с перловкой по-домашнему', items: [{ id: 'liver', g: 200 }, { id: 'barley', g: 100 }] },
+      { id: 'b1', type: 'breakfast', title: 'Омлет из 3 яиц с тягучим сыром', items: [{ id: 'eggs', g: 165 }, { id: 'cheese', g: 40 }, { id: 'milk', g: 60 }] },
+      { id: 'b2', type: 'breakfast', title: 'Овсяная каша на молоке', items: [{ id: 'oats', g: 80 }, { id: 'milk', g: 200 }] },
+      { id: 's1', type: 'snack', title: 'Творожный перекус', items: [{ id: 'curd', g: 140 }] }
+    ];
+
+    let state = JSON.parse(localStorage.getItem('irkzakup_state')) || {
+      city: 'Тайшет',
+      budget: 4500,
+      days: 5,
+      meals: 3,
+      favs: ['свинина', 'курица', 'рис', 'стручковая фасоль', 'эноки', 'сыр'],
+      bans: ['печень', 'перловка'],
+      checkedItems: {},
+      packOverrides: {}
+    };
+
+    function saveState() {
+      localStorage.setItem('irkzakup_state', JSON.stringify(state));
+    }
+
+    function updateSliders() {
+      state.budget = parseInt(document.getElementById('budgetInput').value);
+      state.days = parseInt(document.getElementById('daysInput').value);
+      document.getElementById('budgetLabel').textContent = state.budget.toLocaleString('ru-RU') + ' ₽';
+      document.getElementById('daysLabel').textContent = state.days + ' дн.';
+    }
+
+    function setMeals(count) {
+      state.meals = count;
+      [2, 3, 4].forEach(n => {
+        const btn = document.getElementById('mealBtn' + n);
+        if (n === count) {
+          btn.className = 'meal-btn py-2 rounded-xl text-xs font-semibold border border-emerald-500 bg-emerald-950 text-emerald-300';
+        } else {
+          btn.className = 'meal-btn py-2 rounded-xl text-xs font-semibold border border-slate-700 bg-slate-900';
+        }
+      });
+      saveAndRecalc();
+    }
+
+    function renderTags() {
+      const favBox = document.getElementById('favContainer');
+      const banBox = document.getElementById('banContainer');
+      favBox.innerHTML = state.favs.map(t =>
+        `<button onclick="removeTag('fav', '${t}')" class="chip-fav text-xs px-2.5 py-1 rounded-lg flex items-center gap-1">${t} <span>×</span></button>`
+      ).join('');
+      banBox.innerHTML = state.bans.map(t =>
+        `<button onclick="removeTag('ban', '${t}')" class="chip-ban text-xs px-2.5 py-1 rounded-lg flex items-center gap-1">${t} <span>×</span></button>`
+      ).join('');
+    }
+
+    function removeTag(type, tag) {
+      if (type === 'fav') state.favs = state.favs.filter(x => x !== tag);
+      else state.bans = state.bans.filter(x => x !== tag);
+      renderTags();
+      saveAndRecalc();
+    }
+
+    function addCustomTag(type) {
+      const input = document.getElementById(type === 'fav' ? 'newFavInput' : 'newBanInput');
+      const val = input.value.trim().toLowerCase();
+      if (!val) return;
+      if (type === 'fav' && !state.favs.includes(val)) state.favs.push(val);
+      if (type === 'ban' && !state.bans.includes(val)) state.bans.push(val);
+      input.value = '';
+      renderTags();
+      saveAndRecalc();
+    }
+
+    function saveAndRecalc() {
+      state.city = document.getElementById('citySelect').value;
+      document.getElementById('headerCityBadge').textContent = state.city;
+      saveState();
+      generatePlan();
+    }
+
+    function getAvailableStores(city) {
+      if (city === 'Иркутск' || city === 'Ангарск') return ['Слата', 'ХлебСоль', 'Лента', 'Пятёрочка'];
+      return ['Слата', 'ХлебСоль', 'Пятёрочка'];
+    }
+
+    function generatePlan() {
+      // Фильтрация рецептов по черному списку
+      const allowedRecipes = RECIPES.filter(r => {
+        return !r.items.some(ing => {
+          const prod = CATALOG.find(p => p.id === ing.id);
+          return prod.tags.some(tag => state.bans.includes(tag));
+        });
+      });
+
+      // Сортировка по числу любимых тегов
+      const scoreRecipe = (r) => {
+        let score = 0;
+        r.items.forEach(ing => {
+          const prod = CATALOG.find(p => p.id === ing.id);
+          if (prod.tags.some(tag => state.favs.includes(tag))) score += 2;
+        });
+        return score;
+      };
+
+      const mains = allowedRecipes.filter(r => r.type === 'main').sort((a, b) => scoreRecipe(b) - scoreRecipe(a));
+      const breakfasts = allowedRecipes.filter(r => r.type === 'breakfast');
+      const snacks = allowedRecipes.filter(r => r.type === 'snack');
+
+      const neededGrams = {};
+      const menuDays = [];
+
+      for (let d = 1; d <= state.days; d++) {
+        const dayMeals = [];
+        if (state.meals >= 3 && breakfasts.length) {
+          const bf = breakfasts[(d - 1) % breakfasts.length];
+          dayMeals.push({ slot: 'Завтрак', title: bf.title, items: bf.items });
+        }
+        if (mains.length) {
+          const lunch = mains[(d * 2 - 2) % mains.length];
+          const dinner = mains[(d * 2 - 1) % mains.length];
+          dayMeals.push({ slot: 'Обед', title: lunch.title, items: lunch.items });
+          dayMeals.push({ slot: 'Ужин', title: dinner.title, items: dinner.items });
+        }
+        if (state.meals === 4 && snacks.length) {
+          const sn = snacks[0];
+          dayMeals.push({ slot: 'Перекус', title: sn.title, items: sn.items });
+        }
+
+        dayMeals.forEach(m => {
+          m.items.forEach(ing => {
+            neededGrams[ing.id] = (neededGrams[ing.id] || 0) + ing.g;
+          });
+        });
+
+        menuDays.push({ day: d, meals: dayMeals });
+      }
+
+      // Расчет целых упаковок и выбор лучших магазинов (правило Анти-беготня)
+      const stores = getAvailableStores(state.city);
+      const requiredItems = Object.keys(neededGrams).map(id => {
+        const prod = CATALOG.find(p => p.id === id);
+        const totalG = neededGrams[id];
+        const basePacks = Math.ceil(totalG / prod.packGrams);
+        const packs = Math.max(1, basePacks + (state.packOverrides[id] || 0));
+        return {
+          product: prod,
+          neededGrams: totalG,
+          packs: packs,
+          leftoverGrams: Math.max(0, packs * prod.packGrams - totalG)
+        };
+      });
+
+      // Считаем стоимость в каждом отдельном магазине
+      let bestSingleStore = stores[0];
+      let bestSingleTotal = Infinity;
+      stores.forEach(st => {
+        const sum = requiredItems.reduce((acc, item) => acc + item.packs * item.p<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ИркЗакуп — Умная корзина</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { -webkit-tap-highlight-color: transparent; font-family: system-ui, -apple-system, sans-serif; }
+    .tab-active { background-color: #059669; color: white; font-weight: 600; }
+    .chip-fav { background-color: #d1fae5; color: #065f46; border: 1px solid #34d399; }
+    .chip-ban { background-color: #fee2e2; color: #991b1b; border: 1px solid #f87171; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-24">
+
+  <!-- Шапка -->
+  <header class="bg-slate-800 border-b border-slate-700 sticky top-0 z-30 px-4 py-3 flex items-center justify-between shadow-md">
+    <div>
+      <div class="flex items-center gap-2">
+        <span class="text-xl">🌲</span>
+        <h1 class="text-lg font-bold tracking-tight text-emerald-400">ИркЗакуп</h1>
+        <span id="headerCityBadge" class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">Тайшет</span>
+      </div>
+      <p class="text-xs text-slate-400">Автосборка корзины по скидкам</p>
+    </div>
+    <button onclick="generatePlan()" class="bg-emerald-600 active:bg-emerald-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow">
+      ⚡ Пересчитать
+    </button>
+  </header>
+
+  <!-- Контейнер вкладок -->
+  <main class="max-w-lg mx-auto p-4">
+
+    <!-- ВКЛАДКА 1: ПАРАМЕТРЫ -->
+    <section id="tab-params" class="space-y-4">
+      <div class="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-4">
+        <div>
+          <label class="text-xs text-slate-400 uppercase font-bold">Город Иркутской области</label>
+          <select id="citySelect" onchange="saveAndRecalc()" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white">
+            <option value="Тайшет">Тайшет (Слата, ХлебСоль, Пятёрочка)</option>
+            <option value="Иркутск">Иркутск (Слата, Лента, ХлебСоль, Пятёрочка)</option>
+            <option value="Ангарск">Ангарск (Слата, Лента, ХлебСоль, Пятёрочка)</option>
+            <option value="Братск">Братск (Слата, ХлебСоль, Пятёрочка)</option>
+            <option value="Шелехов">Шелехов (Слата, ХлебСоль, Пятёрочка)</option>
+          </select>
+        </div>
+
+        <div>
+          <div class="flex justify-between text-sm mb-1">
+            <span class="text-slate-300">Бюджет на закупку:</span>
+            <span id="budgetLabel" class="font-bold text-emerald-400">4 500 ₽</span>
+          </div>
+          <input id="budgetInput" type="range" min="1000" max="20000" step="250" value="4500" oninput="updateSliders()" onchange="saveAndRecalc()" class="w-full accent-emerald-500">
+        </div>
+
+        <div>
+          <div class="flex justify-between text-sm mb-1">
+            <span class="text-slate-300">На сколько дней:</span>
+            <span id="daysLabel" class="font-bold text-emerald-400">5 дней</span>
+          </div>
+          <input id="daysInput" type="range" min="2" max="14" step="1" value="5" oninput="updateSliders()" onchange="saveAndRecalc()" class="w-full accent-emerald-500">
+        </div>
+
+        <div>
+          <label class="text-xs text-slate-400 uppercase font-bold">График питания</label>
+          <div class="grid grid-cols-3 gap-2 mt-1.5">
+            <button onclick="setMeals(2)" id="mealBtn2" class="meal-btn py-2 rounded-xl text-xs font-semibold border border-slate-700 bg-slate-900">2 раза/день</button>
+            <button onclick="setMeals(3)" id="mealBtn3" class="meal-btn py-2 rounded-xl text-xs font-semibold border border-emerald-500 bg-emerald-950 text-emerald-300">3 раза/день</button>
+            <button onclick="setMeals(4)" id="mealBtn4" class="meal-btn py-2 rounded-xl text-xs font-semibold border border-slate-700 bg-slate-900">3 + перекус</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Любимые продукты -->
+      <div class="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
+        <div class="flex justify-between items-center">
+          <h2 class="text-sm font-bold text-emerald-400">💚 Любимые продукты (приоритет)</h2>
+        </div>
+        <div id="favContainer" class="flex flex-wrap gap-1.5"></div>
+        <div class="flex gap-2 pt-1">
+          <input id="newFavInput" type="text" placeholder="Добавить (напр. эноки, карбонад)..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs">
+          <button onclick="addCustomTag('fav')" class="bg-emerald-600 px-3 py-1.5 rounded-xl text-xs font-bold">+</button>
+        </div>
+      </div>
+
+      <!-- Нелюбимые продукты -->
+      <div class="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-3">
+        <h2 class="text-sm font-bold text-rose-400">🚫 Черный список (исключить)</h2>
+        <div id="banContainer" class="flex flex-wrap gap-1.5"></div>
+        <div class="flex gap-2 pt-1">
+          <input id="newBanInput" type="text" placeholder="Исключить (напр. печень, перловка)..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs">
+          <button onclick="addCustomTag('ban')" class="bg-rose-600 px-3 py-1.5 rounded-xl text-xs font-bold">+</button>
+        </div>
+      </div>
+
+      <button onclick="generatePlan(); switchTab('cart');" class="w-full bg-emerald-500 active:bg-emerald-600 text-slate-950 font-bold py-3.5 rounded-2xl shadow-lg text-sm">
+        🛒 Собрать оптимальную корзину
+      </button>
+    </section>
+
+    <!-- ВКЛАДКА 2: КОРЗИНА -->
+    <section id="tab-cart" class="space-y-4 hidden">
+      <!-- Сводка по бюджету и магазинам -->
+      <div id="cartSummary" class="bg-slate-800 rounded-2xl p-4 border border-slate-700 space-y-2"></div>
+
+      <!-- Список товаров по магазинам -->
+      <div id="cartStoresList" class="space-y-4"></div>
+
+      <button onclick="copyCartToClipboard()" class="w-full bg-slate-700 active:bg-slate-600 text-white font-semibold py-3 rounded-xl text-xs">
+        📋 Скопировать список для Telegram / Заметок
+      </button>
+    </section>
+
+    <!-- ВКЛАДКА 3: МЕНЮ -->
+    <section id="tab-menu" class="space-y-3 hidden">
+      <div id="menuDaysList" class="space-y-3"></div>
+    </section>
+
+    <!-- ВКЛАДКА 4: КЛАДОВКА ОСТАТКОВ -->
+    <section id="tab-pantry" class="space-y-3 hidden">
+      <div class="bg-slate-800 rounded-2xl p-4 border border-slate-700">
+        <h2 class="text-sm font-bold text-amber-400 mb-1">📦 Виртуальная кладовка</h2>
+        <p class="text-xs text-slate-400 mb-3">Продукты покупаются целыми пачками. То, что не ушло в готовку, остается у тебя дома в запасе:</p>
+        <div id="pantryList" class="space-y-2"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Нижняя панель навигации -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-slate-800 border-t border-slate-700 px-2 py-2 flex justify-around z-30 max-w-lg mx-auto">
+    <button onclick="switchTab('params')" id="nav-params" class="tab-active flex-1 py-2 rounded-xl text-xs flex flex-col items-center gap-0.5">
+      <span>⚙️</span><span>Параметры</span>
+    </button>
+    <button onclick="switchTab('cart')" id="nav-cart" class="flex-1 py-2 rounded-xl text-xs text-slate-400 flex flex-col items-center gap-0.5">
+      <span>🛒</span><span>Корзина</span>
+    </button>
+    <button onclick="switchTab('menu')" id="nav-menu" class="flex-1 py-2 rounded-xl text-xs text-slate-400 flex flex-col items-center gap-0.5">
+      <span>🍲</span><span>Рацион</span>
+    </button>
+    <button onclick="switchTab('pantry')" id="nav-pantry" class="flex-1 py-2 rounded-xl text-xs text-slate-400 flex flex-col items-center gap-0.5">
+      <span>📦</span><span>Остатки</span>
+    </button>
+  </nav>
+
+  <script>
+    // Каталог товаров с ценами сетей Иркутской области (вес в граммах/мл)
+    const CATALOG = [
+      { id: 'pork_steak', name: 'Свиной карбонад / стейк охлажденный', packGrams: 500, tags: ['свинина', 'карбонад', 'мясо'], prices: { 'Слата': { price: 249, old: 299, promo: true }, 'ХлебСоль': { price: 259, old: 259, promo: false }, 'Лента': { price: 239, old: 289, promo: true }, 'Пятёрочка': { price: 265, old: 265, promo: false } } },
+      { id: 'chicken_thigh', name: 'Бедро цыпленка-бройлера (Саянский бройлер)', packGrams: 800, tags: ['курица', 'птица', 'мясо'], prices: { 'Слата': { price: 269, old: 295, promo: true }, 'ХлебСоль': { price: 245, old: 279, promo: true }, 'Лента': { price: 255, old: 255, promo: false }, 'Пятёрочка': { price: 259, old: 289, promo: true } } },
+      { id: 'rice', name: 'Рис круглозерный / жасмин в пачке', packGrams: 800, tags: ['рис', 'крупа', 'гарнир'], prices: { 'Слата': { price: 119, old: 149, promo: true }, 'ХлебСоль': { price: 99, old: 125, promo: true }, 'Лента': { price: 109, old: 139, promo: true }, 'Пятёрочка': { price: 115, old: 115, promo: false } } },
+      { id: 'green_beans', name: 'Фасоль стручковая резаная с/м', packGrams: 400, tags: ['стручковая фасоль', 'фасоль', 'овощи'], prices: { 'Слата': { price: 115, old: 145, promo: true }, 'ХлебСоль': { price: 109, old: 109, promo: false }, 'Лента': { price: 99, old: 129, promo: true }, 'Пятёрочка': { price: 119, old: 139, promo: true } } },
+      { id: 'enoki_mushrooms', name: 'Грибы Эноки / Шампиньоны свежие', packGrams: 300, tags: ['эноки', 'грибы', 'шампиньоны'], prices: { 'Слата': { price: 129, old: 169, promo: true }, 'ХлебСоль': { price: 139, old: 139, promo: false }, 'Лента': { price: 119, old: 159, promo: true }, 'Пятёрочка': { price: 135, old: 155, promo: true } } },
+      { id: 'eggs', name: 'Яйцо куриное С1 (Белореченское 10 шт)', packGrams: 550, tags: ['яйца', 'завтрак'], prices: { 'Слата': { price: 119, old: 135, promo: true }, 'ХлебСоль': { price: 108, old: 125, promo: true }, 'Лента': { price: 112, old: 129, promo: true }, 'Пятёрочка': { price: 114, old: 114, promo: false } } },
+      { id: 'pasta', name: 'Макароны из твердых сортов пшеницы', packGrams: 450, tags: ['макароны', 'паста', 'гарнир'], prices: { 'Слата': { price: 79, old: 99, promo: true }, 'ХлебСоль': { price: 65, old: 79, promo: true }, 'Лента': { price: 69, old: 89, promo: true }, 'Пятёрочка': { price: 72, old: 72, promo: false } } },
+      { id: 'cheese', name: 'Сыр полутвердый Российский / Гауда', packGrams: 200, tags: ['сыр', 'молочка', 'завтрак'], prices: { 'Слата': { price: 169, old: 210, promo: true }, 'ХлебСоль': { price: 159, old: 189, promo: true }, 'Лента': { price: 155, old: 199, promo: true }, 'Пятёрочка': { price: 164, old: 189, promo: true } } },
+      { id: 'buuzy', name: 'Буузы по-бурятски ручной лепки с/м', packGrams: 800, tags: ['буузы', 'пельмени', 'мясо'], prices: { 'Слата': { price: 349, old: 429, promo: true }, 'ХлебСоль': { price: 319, old: 379, promo: true }, 'Лента': { price: 339, old: 399, promo: true }, 'Пятёрочка': { price: 359, old: 359, promo: false } } },
+      { id: 'oats', name: 'Хлопья овсяные Геркулес', packGrams: 500, tags: ['овсянка', 'каша', 'завтрак'], prices: { 'Слата': { price: 65, old: 65, promo: false }, 'ХлебСоль': { price: 49, old: 62, promo: true }, 'Лента': { price: 55, old: 55, promo: false }, 'Пятёрочка': { price: 54, old: 69, promo: true } } },
+      { id: 'milk', name: 'Молоко Янта / Млада 2.5% (1 л)', packGrams: 1000, tags: ['молоко', 'молочка', 'завтрак'], prices: { 'Слата': { price: 89, old: 105, promo: true }, 'ХлебСоль': { price: 82, old: 95, promo: true }, 'Лента': { price: 85, old: 99, promo: true }, 'Пятёрочка': { price: 86, old: 86, promo: false } } },
+      { id: 'potato', name: 'Картофель мытый / домашний (сетка)', packGrams: 1500, tags: ['картофель', 'овощи', 'гарнир'], prices: { 'Слата': { price: 89, old: 109, promo: true }, 'ХлебСоль': { price: 75, old: 90, promo: true }, 'Лента': { price: 79, old: 79, promo: false }, 'Пятёрочка': { price: 84, old: 99, promo: true } } },
+      { id: 'curd', name: 'Творог 5% рассыпчатый (Белореченский)', packGrams: 350, tags: ['творог', 'перекус', 'завтрак'], prices: { 'Слата': { price: 139, old: 165, promo: true }, 'ХлебСоль': { price: 129, old: 149, promo: true }, 'Лента': { price: 135, old: 155, promo: true }, 'Пятёрочка': { price: 132, old: 132, promo: false } } },
+      { id: 'liver', name: 'Печень говяжья / куриная охлажденная', packGrams: 500, tags: ['печень', 'субпродукты'], prices: { 'Слата': { price: 169, old: 199, promo: true }, 'ХлебСоль': { price: 149, old: 179, promo: true }, 'Лента': { price: 159, old: 159, promo: false }, 'Пятёрочка': { price: 165, old: 185, promo: true } } },
+      { id: 'barley', name: 'Крупа перловая отборная', packGrams: 800, tags: ['перловка', 'крупа'], prices: { 'Слата': { price: 49, old: 49, promo: false }, 'ХлебСоль': { price: 39, old: 45, promo: true }, 'Лента': { price: 42, old: 42, promo: false }, 'Пятёрочка': { price: 44, old: 44, promo: false } } }
+    ];
+
+    const RECIPES = [
+      { id: 'r1', type: 'main', title: 'Свиной стейк с рисом и грибами эноки', items: [{ id: 'pork_steak', g: 200 }, { id: 'rice', g: 100 }, { id: 'enoki_mushrooms', g: 80 }] },
+      { id: 'r2', type: 'main', title: 'Запеченное куриное бедро со стручковой фасолью', items: [{ id: 'chicken_thigh', g: 220 }, { id: 'green_beans', g: 150 }] },
+      { id: 'r3', type: 'main', title: 'Паста с курицей, грибами и сырной корочкой', items: [{ id: 'pasta', g: 110 }, { id: 'chicken_thigh', g: 150 }, { id: 'enoki_mushrooms', g: 60 }, { id: 'cheese', g: 35 }] },
+      { id: 'r4', type: 'main', title: 'Сочные бурятские буузы', items: [{ id: 'buuzy', g: 260 }] },
+      { id: 'r5', type: 'main', title: 'Жаркое из свинины с молодым картофелем', items: [{ id: 'pork_steak', g: 180 }, { id: 'potato', g: 250 }] },
+      { id: 'r6', type: 'main', title: 'Тушеная печень с перловкой по-домашнему', items: [{ id: 'liver', g: 200 }, { id: 'barley', g: 100 }] },
+      { id: 'b1', type: 'breakfast', title: 'Омлет из 3 яиц с тягучим сыром', items: [{ id: 'eggs', g: 165 }, { id: 'cheese', g: 40 }, { id: 'milk', g: 60 }] },
+      { id: 'b2', type: 'breakfast', title: 'Овсяная каша на молоке', items: [{ id: 'oats', g: 80 }, { id: 'milk', g: 200 }] },
+      { id: 's1', type: 'snack', title: 'Творожный перекус', items: [{ id: 'curd', g: 140 }] }
+    ];
+
+    let state = JSON.parse(localStorage.getItem('irkzakup_state')) || {
+      city: 'Тайшет',
+      budget: 4500,
+      days: 5,
+      meals: 3,
+      favs: ['свинина', 'курица', 'рис', 'стручковая фасоль', 'эноки', 'сыр'],
+      bans: ['печень', 'перловка'],
+      checkedItems: {},
+      packOverrides: {}
+    };
+
+    function saveState() {
+      localStorage.setItem('irkzakup_state', JSON.stringify(state));
+    }
+
+    function updateSliders() {
+      state.budget = parseInt(document.getElementById('budgetInput').value);
+      state.days = parseInt(document.getElementById('daysInput').value);
+      document.getElementById('budgetLabel').textContent = state.budget.toLocaleString('ru-RU') + ' ₽';
+      document.getElementById('daysLabel').textContent = state.days + ' дн.';
+    }
+
+    function setMeals(count) {
+      state.meals = count;
+      [2, 3, 4].forEach(n => {
+        const btn = document.getElementById('mealBtn' + n);
+        if (n === count) {
+          btn.className = 'meal-btn py-2 rounded-xl text-xs font-semibold border border-emerald-500 bg-emerald-950 text-emerald-300';
+        } else {
+          btn.className = 'meal-btn py-2 rounded-xl text-xs font-semibold border border-slate-700 bg-slate-900';
+        }
+      });
+      saveAndRecalc();
+    }
+
+    function renderTags() {
+      const favBox = document.getElementById('favContainer');
+      const banBox = document.getElementById('banContainer');
+      favBox.innerHTML = state.favs.map(t =>
+        `<button onclick="removeTag('fav', '${t}')" class="chip-fav text-xs px-2.5 py-1 rounded-lg flex items-center gap-1">${t} <span>×</span></button>`
+      ).join('');
+      banBox.innerHTML = state.bans.map(t =>
+        `<button onclick="removeTag('ban', '${t}')" class="chip-ban text-xs px-2.5 py-1 rounded-lg flex items-center gap-1">${t} <span>×</span></button>`
+      ).join('');
+    }
+
+    function removeTag(type, tag) {
+      if (type === 'fav') state.favs = state.favs.filter(x => x !== tag);
+      else state.bans = state.bans.filter(x => x !== tag);
+      renderTags();
+      saveAndRecalc();
+    }
+
+    function addCustomTag(type) {
+      const input = document.getElementById(type === 'fav' ? 'newFavInput' : 'newBanInput');
+      const val = input.value.trim().toLowerCase();
+      if (!val) return;
+      if (type === 'fav' && !state.favs.includes(val)) state.favs.push(val);
+      if (type === 'ban' && !state.bans.includes(val)) state.bans.push(val);
+      input.value = '';
+      renderTags();
+      saveAndRecalc();
+    }
+
+    function saveAndRecalc() {
+      state.city = document.getElementById('citySelect').value;
+      document.getElementById('headerCityBadge').textContent = state.city;
+      saveState();
+      generatePlan();
+    }
+
+    function getAvailableStores(city) {
+      if (city === 'Иркутск' || city === 'Ангарск') return ['Слата', 'ХлебСоль', 'Лента', 'Пятёрочка'];
+      return ['Слата', 'ХлебСоль', 'Пятёрочка'];
+    }
+
+    function generatePlan() {
+      // Фильтрация рецептов по черному списку
+      const allowedRecipes = RECIPES.filter(r => {
+        return !r.items.some(ing => {
+          const prod = CATALOG.find(p => p.id === ing.id);
+          return prod.tags.some(tag => state.bans.includes(tag));
+        });
+      });
+
+      // Сортировка по числу любимых тегов
+      const scoreRecipe = (r) => {
+        let score = 0;
+        r.items.forEach(ing => {
+          const prod = CATALOG.find(p => p.id === ing.id);
+          if (prod.tags.some(tag => state.favs.includes(tag))) score += 2;
+        });
+        return score;
+      };
+
+      const mains = allowedRecipes.filter(r => r.type === 'main').sort((a, b) => scoreRecipe(b) - scoreRecipe(a));
+      const breakfasts = allowedRecipes.filter(r => r.type === 'breakfast');
+      const snacks = allowedRecipes.filter(r => r.type === 'snack');
+
+      const neededGrams = {};
+      const menuDays = [];
+
+      for (let d = 1; d <= state.days; d++) {
+        const dayMeals = [];
+        if (state.meals >= 3 && breakfasts.length) {
+          const bf = breakfasts[(d - 1) % breakfasts.length];
+          dayMeals.push({ slot: 'Завтрак', title: bf.title, items: bf.items });
+        }
+        if (mains.length) {
+          const lunch = mains[(d * 2 - 2) % mains.length];
+          const dinner = mains[(d * 2 - 1) % mains.length];
+          dayMeals.push({ slot: 'Обед', title: lunch.title, items: lunch.items });
+          dayMeals.push({ slot: 'Ужин', title: dinner.title, items: dinner.items });
+        }
+        if (state.meals === 4 && snacks.length) {
+          const sn = snacks[0];
+          dayMeals.push({ slot: 'Перекус', title: sn.title, items: sn.items });
+        }
+
+        dayMeals.forEach(m => {
+          m.items.forEach(ing => {
+            neededGrams[ing.id] = (neededGrams[ing.id] || 0) + ing.g;
+          });
+        });
+
+        menuDays.push({ day: d, meals: dayMeals });
+      }
+
+      // Расчет целых упаковок и выбор лучших магазинов (правило Анти-беготня)
+      const stores = getAvailableStores(state.city);
+      const requiredItems = Object.keys(neededGrams).map(id => {
+        const prod = CATALOG.find(p => p.id === id);
+        const totalG = neededGrams[id];
+        const basePacks = Math.ceil(totalG / prod.packGrams);
+        const packs = Math.max(1, basePacks + (state.packOverrides[id] || 0));
+        return {
+          product: prod,
+          neededGrams: totalG,
+          packs: packs,
+          leftoverGrams: Math.max(0, packs * prod.packGrams - totalG)
+        };
+      });
+
+      // Считаем стоимость в каждом отдельном магазине
+      let bestSingleStore = stores[0];
+      let bestSingleTotal = Infinity;
+      stores.forEach(st => {
+        const sum = requiredItems.reduce((acc, item) => acc + item.packs * item.p
